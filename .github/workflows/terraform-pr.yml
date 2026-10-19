@@ -1,0 +1,112 @@
+name: Terraform PR
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform-pr.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.6"
+
+      - name: Format
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Init development without backend
+        working-directory: terraform/environments/development
+        run: terraform init -backend=false -input=false
+
+      - name: Validate development
+        working-directory: terraform/environments/development
+        run: terraform validate
+
+      - name: Init production without backend
+        working-directory: terraform/environments/production
+        run: terraform init -backend=false -input=false
+
+      - name: Validate production
+        working-directory: terraform/environments/production
+        run: terraform validate
+
+  plan-development:
+    needs: validate
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.DEV_PLAN_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    defaults:
+      run:
+        working-directory: terraform/environments/development
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.6"
+
+      - name: Initialize backend
+        run: terraform init -input=false -backend-config=backend.hcl
+
+      - name: Speculative plan
+        run: terraform plan -input=false -no-color
+
+  plan-production:
+    needs: validate
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.PROD_PLAN_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    defaults:
+      run:
+        working-directory: terraform/environments/production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.6"
+
+      - name: Initialize backend
+        run: terraform init -input=false -backend-config=backend.hcl
+
+      - name: Speculative plan
+        run: terraform plan -input=false -no-color

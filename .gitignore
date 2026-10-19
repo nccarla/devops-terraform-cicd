@@ -1,0 +1,10 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+*.tfplan
+terraform.tfvars
+crash.log
+# .terraform.lock.hcl SÍ se versiona (no lo agregues aquí)
+github-variables.txt

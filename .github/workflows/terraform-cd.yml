@@ -1,0 +1,166 @@
+name: Terraform CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-orders-platform
+  cancel-in-progress: false
+
+jobs:
+  plan-development:
+    runs-on: ubuntu-latest
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.DEV_PLAN_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    defaults:
+      run:
+        working-directory: terraform/environments/development
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.6"
+
+      - name: Initialize
+        run: terraform init -input=false -backend-config=backend.hcl
+
+      - name: Create saved plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Show plan
+        run: terraform show -no-color tfplan
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: development-tfplan
+          path: terraform/environments/development/tfplan
+          retention-days: 1
+
+  apply-development:
+    needs: plan-development
+    runs-on: ubuntu-latest
+    environment: development
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.DEV_APPLY_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    defaults:
+      run:
+        working-directory: terraform/environments/development
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.6"
+
+      - name: Initialize
+        run: terraform init -input=false -backend-config=backend.hcl
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: development-tfplan
+          path: terraform/environments/development
+
+      - name: Apply saved plan
+        run: terraform apply -input=false tfplan
+
+  plan-production:
+    needs: apply-development
+    runs-on: ubuntu-latest
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.PROD_PLAN_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    defaults:
+      run:
+        working-directory: terraform/environments/production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.6"
+
+      - name: Initialize
+        run: terraform init -input=false -backend-config=backend.hcl
+
+      - name: Create saved plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Show plan
+        run: terraform show -no-color tfplan
+
+      - name: Upload plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-tfplan
+          path: terraform/environments/production/tfplan
+          retention-days: 1
+
+  apply-production:
+    needs: plan-production
+    runs-on: ubuntu-latest
+    environment: production
+
+    env:
+      ARM_CLIENT_ID: ${{ vars.PROD_APPLY_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+    defaults:
+      run:
+        working-directory: terraform/environments/production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.6"
+
+      - name: Initialize
+        run: terraform init -input=false -backend-config=backend.hcl
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: production-tfplan
+          path: terraform/environments/production
+
+      - name: Apply saved plan
+        run: terraform apply -input=false tfplan
