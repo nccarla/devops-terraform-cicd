@@ -5,5 +5,6 @@ resource_group_name = "rg-orders-prod-cnc01"
 application_name    = "orders-platform"
 
 additional_tags = {
-  owner = "platform-team"
+  owner       = "platform-team"
+  cost_center = "engineering"
 }
